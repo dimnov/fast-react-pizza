@@ -2,11 +2,13 @@ import { useSelector } from "react-redux";
 import Button from "../../ui/Button";
 import LinkButton from "../../ui/LinkButton";
 import CartItem from "./CartItem";
+import { getCart } from "./cartSlice";
+import { getUsername } from "../user/userSlice";
 
 function Cart() {
-  const username = useSelector((state) => state.user.username);
+  const username = useSelector(getUsername);
 
-  const cart = useSelector((state) => state.cart.cart);
+  const cart = useSelector(getCart);
 
   return (
     <div className="px-4 py-3">
