@@ -5,35 +5,15 @@ import Button from "../../ui/Button";
 import { useSelector } from "react-redux";
 import { useState } from "react";
 import { getUsername } from "../user/userSlice";
+import { clearCart, getCart, getTotalCartPrice } from "../cart/cartSlice";
+import EmptyCart from "../cart/EmptyCart";
+import { formatCurrency } from "../../utils/helpers";
+import store from "../../store";
 
 const isValidPhone = (str) =>
   /^\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}$/.test(
     str,
   );
-
-const fakeCart = [
-  {
-    pizzaId: 12,
-    name: "Mediterranean",
-    quantity: 2,
-    unitPrice: 16,
-    totalPrice: 32,
-  },
-  {
-    pizzaId: 6,
-    name: "Vegetale",
-    quantity: 1,
-    unitPrice: 13,
-    totalPrice: 13,
-  },
-  {
-    pizzaId: 11,
-    name: "Spinach and Mushroom",
-    quantity: 1,
-    unitPrice: 15,
-    totalPrice: 15,
-  },
-];
 
 function CreateOrder() {
   const [withPriority, setWithPriority] = useState(false);
@@ -42,9 +22,18 @@ function CreateOrder() {
 
   const formErrors = useActionData();
 
-  const cart = fakeCart;
+  const cart = useSelector(getCart);
+  const totalCartPrice = useSelector(getTotalCartPrice);
+
+  const priorityFee = totalCartPrice * 0.2;
+  const priorityPrice = withPriority ? priorityFee : 0;
+  const totalPrice = totalCartPrice + priorityPrice;
 
   const username = useSelector(getUsername);
+
+  if (!cart.length) {
+    return <EmptyCart />;
+  }
 
   return (
     <div className="px-4 py-6">
@@ -98,15 +87,18 @@ function CreateOrder() {
             onChange={(e) => setWithPriority(e.target.checked)}
           />
           <label htmlFor="priority" className="font-medium">
-            Want to give your order priority?
+            Want to give your order priority? ({formatCurrency(priorityFee)})
           </label>
         </div>
 
-        <div>
+        <div className="flex">
           <input type="hidden" name="cart" value={JSON.stringify(cart)} />
           <Button type="primary" disabled={isSubmitting}>
-            {isSubmitting ? "Placing order..." : "Order now"}
+            {isSubmitting ? "Placing order..." : `Order now`}
           </Button>
+          <p className="ml-2 flex items-center justify-center font-medium">
+            {formatCurrency(totalPrice)}
+          </p>
         </div>
       </Form>
     </div>
@@ -120,7 +112,7 @@ export async function action({ request }) {
   const order = {
     ...data,
     cart: JSON.parse(data.cart),
-    priority: data.priority === "on",
+    priority: data.priority === "true",
   };
 
   const errors = {};
@@ -134,6 +126,8 @@ export async function action({ request }) {
   }
 
   const newOrder = await createOrder(order);
+
+  store.dispatch(clearCart());
 
   return redirect(`/order/${newOrder.id}`);
 }
