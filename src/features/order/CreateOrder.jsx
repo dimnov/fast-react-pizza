@@ -2,9 +2,9 @@
 import { Form, redirect, useActionData, useNavigate } from "react-router-dom";
 import { createOrder } from "../../services/apiRestaurant";
 import Button from "../../ui/Button";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { useState } from "react";
-import { getUsername } from "../user/userSlice";
+import { fetchAddress, getUserData } from "../user/userSlice";
 import { clearCart, getCart, getTotalCartPrice } from "../cart/cartSlice";
 import EmptyCart from "../cart/EmptyCart";
 import { formatCurrency } from "../../utils/helpers";
@@ -21,6 +21,7 @@ function CreateOrder() {
   const isSubmitting = navigation.state === "submitting";
 
   const formErrors = useActionData();
+  const dispatch = useDispatch();
 
   const cart = useSelector(getCart);
   const totalCartPrice = useSelector(getTotalCartPrice);
@@ -29,10 +30,24 @@ function CreateOrder() {
   const priorityPrice = withPriority ? priorityFee : 0;
   const totalPrice = totalCartPrice + priorityPrice;
 
-  const username = useSelector(getUsername);
+  const {
+    username,
+    status: addressStatus,
+    position,
+    address,
+    error: errorAddress,
+  } = useSelector(getUserData);
+
+  const isLoadingAddress = addressStatus === "loading";
 
   if (!cart.length) {
     return <EmptyCart />;
+  }
+
+  function handleFetchAddress(e) {
+    e.preventDefault();
+
+    dispatch(fetchAddress());
   }
 
   return (
@@ -65,16 +80,35 @@ function CreateOrder() {
           </div>
         </div>
 
-        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative mb-5 flex flex-col gap-2 sm:flex-row sm:items-center">
           <label className="sm:basis-40">Address</label>
           <div className="grow">
             <input
               className="input w-full"
               type="text"
               name="address"
+              defaultValue={address}
+              disabled={isLoadingAddress}
               required
             />
+            {addressStatus === "error" && (
+              <p className="mt-2 rounded-md bg-red-100 p-2 text-sm text-red-700">
+                {errorAddress}
+              </p>
+            )}
           </div>
+
+          {!position.latitude && !position.longitude && (
+            <span className="absolute right-1 top-[5.5px] sm:top-[3px] md:top-[5.5px]">
+              <Button
+                disabled={isLoadingAddress}
+                onClick={handleFetchAddress}
+                type="small"
+              >
+                auto location
+              </Button>
+            </span>
+          )}
         </div>
 
         <div className="mb-12 flex items-center gap-5">
@@ -93,7 +127,17 @@ function CreateOrder() {
 
         <div className="flex">
           <input type="hidden" name="cart" value={JSON.stringify(cart)} />
-          <Button type="primary" disabled={isSubmitting}>
+          <input
+            type="hidden"
+            name="position"
+            value={
+              position.longitude && position.latitude
+                ? `${position.latitude},${position.longitude}`
+                : ""
+            }
+          />
+
+          <Button type="primary" disabled={isSubmitting || isLoadingAddress}>
             {isSubmitting ? "Placing order..." : `Order now`}
           </Button>
           <p className="ml-2 flex items-center justify-center font-medium">
@@ -114,7 +158,7 @@ export async function action({ request }) {
     cart: JSON.parse(data.cart),
     priority: data.priority === "true",
   };
-
+  console.log(order);
   const errors = {};
 
   if (!isValidPhone(order.phone)) {
